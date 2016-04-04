@@ -8,14 +8,23 @@ import (
     "fmt"
 )
 
-var idAssignmentChan = make(chan string)  // assigns IDs to all new users
-var userList map[string] net.Conn         // maintains a list of connected users
+type userDetails struct {
+  id string
+  conn net.Conn
+}
+
+var userList map[string] net.Conn         // keep track of connected users
+
+var idAssignmentChan = make(chan string)  // used to give IDs to all users
+var addUserChan = make(chan userDetails)  // used to add user to userList
 
 func HandleConnection(conn net.Conn) {
     b := bufio.NewReader(conn)
-    client_id := <-idAssignmentChan       // user id -> connection address
+    clientID := <-idAssignmentChan
 
-    userList[client_id] = conn
+    // create a struct to represent a new user and pass it along to userList
+    newUser := userDetails{id: clientID, conn: conn}
+    addUserChan <- newUser
 
     for {
         line, err := b.ReadBytes('\n')
@@ -24,15 +33,23 @@ func HandleConnection(conn net.Conn) {
             break
         }
 
-        // strings without colon should be broadcast by default
-        // if !strings.Contains(line, ":") {
-        //
-        // }
-
+        // every time a message is sent, broadcast it to everyone in userList
         for _, v := range userList {
-          v.Write([]byte(client_id + ": " +string(line)))
+          v.Write([]byte(clientID + ": " +string(line)))
         }
     }
+}
+
+func userListManager() {
+  userList = make(map[string] net.Conn)
+
+  for {
+    select {
+    case newUser := <-addUserChan:
+      userList[newUser.id] = newUser.conn
+      fmt.Println(userList)
+    }
+  }
 }
 
 func IdManager() {
@@ -54,8 +71,9 @@ func main() {
         fmt.Fprintln(os.Stderr, "Can't connect to port")
         os.Exit(1)
     }
+
     go IdManager()
-    userList = make(map[string] net.Conn)
+    go userListManager()
 
     fmt.Println("Listening on port", os.Args[1])
     for {
