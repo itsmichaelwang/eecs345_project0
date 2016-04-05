@@ -69,18 +69,16 @@ func handleConnection(conn net.Conn) {
                 body := strings.Trim(lineSplitByFirstColon[1], " ")
                 privateMsg := message{sender: clientID, recipient: command, body: body}
                 privateMsgChan<-privateMsg
-
             }
         }
     }
 }
 
+// used to track users and send messages their way
 func userListManager() {
     userList = make(map[string] net.Conn)
-
     for {
         select {
-
         case newUser := <-addUserChan:
             userList[newUser.id] = newUser.conn
         case publicMsg := <-publicMsgChan:
@@ -92,7 +90,6 @@ func userListManager() {
                 conn.Write([]byte(privateMsg.sender + ": " + privateMsg.body))
             }
         }
-
     }
 }
 
