@@ -24,6 +24,7 @@ var userList map[string] net.Conn         // tracks all connected users
 
 var idAssignmentChan = make(chan string)  // used to assign IDs to all new users
 var addUserChan = make(chan user)         // used to add users to userList
+var removeUserChan = make(chan string)    // used to remove users from userList
 
 var publicMsgChan = make(chan message)    // used to broadcast public messages
 var privateMsgChan = make(chan message)   // used to send private messages
@@ -42,6 +43,7 @@ func handleConnection(conn net.Conn) {
     for {
         line, err := b.ReadBytes('\n')
         if err != nil {
+            removeUserChan<-clientID
             conn.Close()
             break
         }
@@ -81,6 +83,8 @@ func userListManager() {
         select {
         case newUser := <-addUserChan:
             userList[newUser.id] = newUser.conn
+        case removeUserID := <-removeUserChan:
+            delete(userList, removeUserID)
         case publicMsg := <-publicMsgChan:
             for _, conn := range userList {
                 conn.Write([]byte(publicMsg.sender + ": " + publicMsg.body))
